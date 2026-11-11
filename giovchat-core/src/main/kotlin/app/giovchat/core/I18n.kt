@@ -1,0 +1,449 @@
+package app.giovchat.core
+
+import java.util.Locale
+
+// The SDK's own interface text in the five languages the Giov dashboard ships (en, fr, es, pt, de). Text the
+// business writes (greeting, placeholder, bot name) comes from the widget configuration and is not translated.
+// Pick the language with [resolveGiovStrings] (default: the device language) and replace any string with
+// [GiovChatStrings.withOverrides]. Generated from the same wording as the React Native and Flutter SDKs.
+
+/** Languages the SDK ships. */
+public val GIOV_LOCALES: List<String> = listOf("en", "fr", "es", "pt", "de")
+
+private fun n(value: Double): String = if (value == Math.rint(value)) value.toLong().toString() else value.toString()
+
+public class GiovChatStrings(
+    /** Shown while the configuration loads. */
+    public val loading: String,
+    /** Button after a failure that needs a fresh start. */
+    public val tryAgain: String,
+    /** Button on a message that was not sent. */
+    public val retry: String,
+    /** Accessible label of the close button. */
+    public val closeChat: String,
+    /** The header link to the workspace's privacy policy (the web widget's "GDPR and privacy"). */
+    public val privacy: String,
+    /** Shown while the first connection is made. */
+    public val connecting: String,
+    /** Banner while the connection is being restored. */
+    public val reconnecting: String,
+    /** Header status while a person has the conversation. */
+    public val statusPerson: String,
+    /** Header status while GiovBot answers. */
+    public val statusBot: String,
+    /** Header status before anyone has answered. */
+    public val statusTeam: String,
+    /** Default composer placeholder (the workspace may set its own). */
+    public val composerPlaceholder: String,
+    public val messageInput: String,
+    public val sendMessage: String,
+    public val attachFile: String,
+    public val removeAttachment: (String) -> String,
+    public val you: String,
+    public val agent: String,
+    public val automated: String,
+    public val botTyping: (String) -> String,
+    public val teamTyping: String,
+    /** Under a message that has not been confirmed yet. */
+    public val sending: String,
+    /** Under a message that failed. */
+    public val notSent: String,
+    /** Hint on a failed message. */
+    public val tapToRetry: String,
+    /** Button on a message that was not sent, to drop it. */
+    public val discard: String,
+    public val uploading: (Int) -> String,
+    public val uploadFailed: String,
+    /** Error: the stored session is gone. */
+    public val sessionExpired: String,
+    /** Error: the conversation was closed or deleted. */
+    public val conversationEnded: String,
+    /** Error: the server could not be reached. */
+    public val unavailable: String,
+    /** Error: a message could not be delivered. */
+    public val sendFailed: String,
+    /** Error: the workspace is at its plan's limit of open conversations. */
+    public val busy: String,
+    public val attachmentsOff: String,
+    public val typeNotAllowed: (String) -> String,
+    public val fileTooLarge: (String, Double) -> String,
+    public val tooManyFiles: (Int) -> String,
+    public val openAttachment: (String) -> String,
+    public val attachment: String,
+    public val image: String,
+    public val preChatTitle: String,
+    public val firstName: String,
+    public val lastName: String,
+    public val email: String,
+    public val phone: String,
+    public val required: (String) -> String,
+    public val startChat: String,
+) {
+    /** These strings with the given ones replaced. Blank strings are ignored. */
+    public fun withOverrides(
+        loading: String? = null,
+        tryAgain: String? = null,
+        retry: String? = null,
+        closeChat: String? = null,
+        privacy: String? = null,
+        connecting: String? = null,
+        reconnecting: String? = null,
+        statusPerson: String? = null,
+        statusBot: String? = null,
+        statusTeam: String? = null,
+        composerPlaceholder: String? = null,
+        messageInput: String? = null,
+        sendMessage: String? = null,
+        attachFile: String? = null,
+        removeAttachment: ((String) -> String)? = null,
+        you: String? = null,
+        agent: String? = null,
+        automated: String? = null,
+        botTyping: ((String) -> String)? = null,
+        teamTyping: String? = null,
+        sending: String? = null,
+        notSent: String? = null,
+        tapToRetry: String? = null,
+        discard: String? = null,
+        uploading: ((Int) -> String)? = null,
+        uploadFailed: String? = null,
+        sessionExpired: String? = null,
+        conversationEnded: String? = null,
+        unavailable: String? = null,
+        sendFailed: String? = null,
+        busy: String? = null,
+        attachmentsOff: String? = null,
+        typeNotAllowed: ((String) -> String)? = null,
+        fileTooLarge: ((String, Double) -> String)? = null,
+        tooManyFiles: ((Int) -> String)? = null,
+        openAttachment: ((String) -> String)? = null,
+        attachment: String? = null,
+        image: String? = null,
+        preChatTitle: String? = null,
+        firstName: String? = null,
+        lastName: String? = null,
+        email: String? = null,
+        phone: String? = null,
+        required: ((String) -> String)? = null,
+        startChat: String? = null,
+    ): GiovChatStrings = GiovChatStrings(
+        loading = keep(loading) ?: this.loading,
+        tryAgain = keep(tryAgain) ?: this.tryAgain,
+        retry = keep(retry) ?: this.retry,
+        closeChat = keep(closeChat) ?: this.closeChat,
+        privacy = keep(privacy) ?: this.privacy,
+        connecting = keep(connecting) ?: this.connecting,
+        reconnecting = keep(reconnecting) ?: this.reconnecting,
+        statusPerson = keep(statusPerson) ?: this.statusPerson,
+        statusBot = keep(statusBot) ?: this.statusBot,
+        statusTeam = keep(statusTeam) ?: this.statusTeam,
+        composerPlaceholder = keep(composerPlaceholder) ?: this.composerPlaceholder,
+        messageInput = keep(messageInput) ?: this.messageInput,
+        sendMessage = keep(sendMessage) ?: this.sendMessage,
+        attachFile = keep(attachFile) ?: this.attachFile,
+        removeAttachment = removeAttachment ?: this.removeAttachment,
+        you = keep(you) ?: this.you,
+        agent = keep(agent) ?: this.agent,
+        automated = keep(automated) ?: this.automated,
+        botTyping = botTyping ?: this.botTyping,
+        teamTyping = keep(teamTyping) ?: this.teamTyping,
+        sending = keep(sending) ?: this.sending,
+        notSent = keep(notSent) ?: this.notSent,
+        tapToRetry = keep(tapToRetry) ?: this.tapToRetry,
+        discard = keep(discard) ?: this.discard,
+        uploading = uploading ?: this.uploading,
+        uploadFailed = keep(uploadFailed) ?: this.uploadFailed,
+        sessionExpired = keep(sessionExpired) ?: this.sessionExpired,
+        conversationEnded = keep(conversationEnded) ?: this.conversationEnded,
+        unavailable = keep(unavailable) ?: this.unavailable,
+        sendFailed = keep(sendFailed) ?: this.sendFailed,
+        busy = keep(busy) ?: this.busy,
+        attachmentsOff = keep(attachmentsOff) ?: this.attachmentsOff,
+        typeNotAllowed = typeNotAllowed ?: this.typeNotAllowed,
+        fileTooLarge = fileTooLarge ?: this.fileTooLarge,
+        tooManyFiles = tooManyFiles ?: this.tooManyFiles,
+        openAttachment = openAttachment ?: this.openAttachment,
+        attachment = keep(attachment) ?: this.attachment,
+        image = keep(image) ?: this.image,
+        preChatTitle = keep(preChatTitle) ?: this.preChatTitle,
+        firstName = keep(firstName) ?: this.firstName,
+        lastName = keep(lastName) ?: this.lastName,
+        email = keep(email) ?: this.email,
+        phone = keep(phone) ?: this.phone,
+        required = required ?: this.required,
+        startChat = keep(startChat) ?: this.startChat,
+    )
+
+    /** The sentence a person sees for a failure; the SDK never shows server text. */
+    public fun describeError(error: Throwable): String = when (error) {
+        is GiovSessionExpiredException -> sessionExpired
+        is GiovConversationClosedException -> conversationEnded
+        is GiovWorkspaceBusyException -> busy
+        is GiovAttachmentRejectedException -> uploadFailed
+        is GiovSendFailedException -> sendFailed
+        else -> unavailable
+    }
+
+    private fun keep(value: String?): String? = value?.takeIf { it.isNotBlank() }
+}
+
+private val EN: GiovChatStrings = GiovChatStrings(
+    loading = "Loading…",
+    tryAgain = "Try again",
+    retry = "Retry",
+    closeChat = "Close chat",
+    privacy = "GDPR and privacy",
+    connecting = "Connecting…",
+    reconnecting = "Connection lost. Reconnecting…",
+    statusPerson = "Live agent",
+    statusBot = "AI assistant · Online",
+    statusTeam = "We'll be with you shortly",
+    composerPlaceholder = "Type a message…",
+    messageInput = "Message",
+    sendMessage = "Send message",
+    attachFile = "Attach file",
+    removeAttachment = { name -> "Remove $name" },
+    you = "You",
+    agent = "Agent",
+    automated = "Automated",
+    botTyping = { name -> "$name is typing" },
+    teamTyping = "Support team is typing",
+    sending = "Sending…",
+    notSent = "Not sent",
+    tapToRetry = "Tap to retry",
+    discard = "Discard",
+    uploading = { percent -> "Uploading $percent%" },
+    uploadFailed = "File upload failed",
+    sessionExpired = "Chat session expired. Please start a new chat.",
+    conversationEnded = "This conversation has ended.",
+    unavailable = "Chat is unavailable. Please try again.",
+    sendFailed = "Message could not be sent.",
+    busy = "The team is busy right now. Please try again in a moment.",
+    attachmentsOff = "File attachments are turned off for this chat.",
+    typeNotAllowed = { name -> "$name: this file type is not allowed." },
+    fileTooLarge = { name, maxMb -> "$name: files must be ${n(maxMb)} MB or smaller." },
+    tooManyFiles = { max -> "You can attach up to $max files at a time." },
+    openAttachment = { name -> "Open $name" },
+    attachment = "Attachment",
+    image = "Image",
+    preChatTitle = "Before we start…",
+    firstName = "First name",
+    lastName = "Last name",
+    email = "Email",
+    phone = "Phone",
+    required = { label -> "$label *" },
+    startChat = "Start chat",
+)
+
+private val FR: GiovChatStrings = GiovChatStrings(
+    loading = "Chargement…",
+    tryAgain = "Réessayer",
+    retry = "Réessayer",
+    closeChat = "Fermer le chat",
+    privacy = "RGPD et confidentialité",
+    connecting = "Connexion…",
+    reconnecting = "Connexion perdue. Reconnexion…",
+    statusPerson = "Conseiller en ligne",
+    statusBot = "Assistant IA · En ligne",
+    statusTeam = "Nous vous répondons très vite",
+    composerPlaceholder = "Écrivez un message…",
+    messageInput = "Message",
+    sendMessage = "Envoyer le message",
+    attachFile = "Joindre un fichier",
+    removeAttachment = { name -> "Retirer $name" },
+    you = "Vous",
+    agent = "Conseiller",
+    automated = "Automatique",
+    botTyping = { name -> "$name écrit" },
+    teamTyping = "L'équipe écrit",
+    sending = "Envoi…",
+    notSent = "Non envoyé",
+    tapToRetry = "Touchez pour réessayer",
+    discard = "Supprimer",
+    uploading = { percent -> "Envoi $percent %" },
+    uploadFailed = "Échec de l'envoi du fichier",
+    sessionExpired = "La session de chat a expiré. Démarrez un nouveau chat.",
+    conversationEnded = "Cette conversation est terminée.",
+    unavailable = "Le chat est indisponible. Réessayez.",
+    sendFailed = "Le message n'a pas pu être envoyé.",
+    busy = "L'équipe est très occupée. Réessayez dans un instant.",
+    attachmentsOff = "Les pièces jointes sont désactivées pour ce chat.",
+    typeNotAllowed = { name -> "$name : ce type de fichier n'est pas autorisé." },
+    fileTooLarge = { name, maxMb -> "$name : les fichiers doivent faire ${n(maxMb)} Mo maximum." },
+    tooManyFiles = { max -> "Vous pouvez joindre jusqu'à $max fichiers à la fois." },
+    openAttachment = { name -> "Ouvrir $name" },
+    attachment = "Pièce jointe",
+    image = "Image",
+    preChatTitle = "Avant de commencer…",
+    firstName = "Prénom",
+    lastName = "Nom",
+    email = "E-mail",
+    phone = "Téléphone",
+    required = { label -> "$label *" },
+    startChat = "Démarrer le chat",
+)
+
+private val ES: GiovChatStrings = GiovChatStrings(
+    loading = "Cargando…",
+    tryAgain = "Reintentar",
+    retry = "Reintentar",
+    closeChat = "Cerrar chat",
+    privacy = "RGPD y privacidad",
+    connecting = "Conectando…",
+    reconnecting = "Conexión perdida. Reconectando…",
+    statusPerson = "Agente en vivo",
+    statusBot = "Asistente de IA · En línea",
+    statusTeam = "Te atenderemos en breve",
+    composerPlaceholder = "Escribe un mensaje…",
+    messageInput = "Mensaje",
+    sendMessage = "Enviar mensaje",
+    attachFile = "Adjuntar archivo",
+    removeAttachment = { name -> "Quitar $name" },
+    you = "Tú",
+    agent = "Agente",
+    automated = "Automático",
+    botTyping = { name -> "$name está escribiendo" },
+    teamTyping = "El equipo está escribiendo",
+    sending = "Enviando…",
+    notSent = "No enviado",
+    tapToRetry = "Toca para reintentar",
+    discard = "Descartar",
+    uploading = { percent -> "Subiendo $percent %" },
+    uploadFailed = "No se pudo subir el archivo",
+    sessionExpired = "La sesión de chat caducó. Inicia un chat nuevo.",
+    conversationEnded = "Esta conversación ha terminado.",
+    unavailable = "El chat no está disponible. Inténtalo de nuevo.",
+    sendFailed = "No se pudo enviar el mensaje.",
+    busy = "El equipo está ocupado ahora. Inténtalo de nuevo en un momento.",
+    attachmentsOff = "Los archivos adjuntos están desactivados en este chat.",
+    typeNotAllowed = { name -> "$name: este tipo de archivo no está permitido." },
+    fileTooLarge = { name, maxMb -> "$name: los archivos deben pesar ${n(maxMb)} MB o menos." },
+    tooManyFiles = { max -> "Puedes adjuntar hasta $max archivos a la vez." },
+    openAttachment = { name -> "Abrir $name" },
+    attachment = "Archivo adjunto",
+    image = "Imagen",
+    preChatTitle = "Antes de empezar…",
+    firstName = "Nombre",
+    lastName = "Apellido",
+    email = "Correo electrónico",
+    phone = "Teléfono",
+    required = { label -> "$label *" },
+    startChat = "Iniciar chat",
+)
+
+private val PT: GiovChatStrings = GiovChatStrings(
+    loading = "Carregando…",
+    tryAgain = "Tentar novamente",
+    retry = "Tentar novamente",
+    closeChat = "Fechar chat",
+    privacy = "RGPD e privacidade",
+    connecting = "Conectando…",
+    reconnecting = "Conexão perdida. Reconectando…",
+    statusPerson = "Atendente ao vivo",
+    statusBot = "Assistente de IA · Online",
+    statusTeam = "Responderemos em breve",
+    composerPlaceholder = "Digite uma mensagem…",
+    messageInput = "Mensagem",
+    sendMessage = "Enviar mensagem",
+    attachFile = "Anexar arquivo",
+    removeAttachment = { name -> "Remover $name" },
+    you = "Você",
+    agent = "Atendente",
+    automated = "Automático",
+    botTyping = { name -> "$name está digitando" },
+    teamTyping = "A equipe está digitando",
+    sending = "Enviando…",
+    notSent = "Não enviada",
+    tapToRetry = "Toque para tentar novamente",
+    discard = "Descartar",
+    uploading = { percent -> "Enviando $percent%" },
+    uploadFailed = "Falha ao enviar o arquivo",
+    sessionExpired = "A sessão do chat expirou. Inicie um novo chat.",
+    conversationEnded = "Esta conversa foi encerrada.",
+    unavailable = "O chat está indisponível. Tente novamente.",
+    sendFailed = "Não foi possível enviar a mensagem.",
+    busy = "A equipe está ocupada agora. Tente novamente em instantes.",
+    attachmentsOff = "Os anexos estão desativados neste chat.",
+    typeNotAllowed = { name -> "$name: este tipo de arquivo não é permitido." },
+    fileTooLarge = { name, maxMb -> "$name: os arquivos devem ter até ${n(maxMb)} MB." },
+    tooManyFiles = { max -> "Você pode anexar até $max arquivos por vez." },
+    openAttachment = { name -> "Abrir $name" },
+    attachment = "Anexo",
+    image = "Imagem",
+    preChatTitle = "Antes de começar…",
+    firstName = "Nome",
+    lastName = "Sobrenome",
+    email = "E-mail",
+    phone = "Telefone",
+    required = { label -> "$label *" },
+    startChat = "Iniciar chat",
+)
+
+private val DE: GiovChatStrings = GiovChatStrings(
+    loading = "Wird geladen…",
+    tryAgain = "Erneut versuchen",
+    retry = "Erneut versuchen",
+    closeChat = "Chat schließen",
+    privacy = "DSGVO und Datenschutz",
+    connecting = "Verbindung wird hergestellt…",
+    reconnecting = "Verbindung unterbrochen. Neuer Versuch…",
+    statusPerson = "Live-Support",
+    statusBot = "KI-Assistent · Online",
+    statusTeam = "Wir sind gleich für dich da",
+    composerPlaceholder = "Nachricht schreiben…",
+    messageInput = "Nachricht",
+    sendMessage = "Nachricht senden",
+    attachFile = "Datei anhängen",
+    removeAttachment = { name -> "$name entfernen" },
+    you = "Du",
+    agent = "Support",
+    automated = "Automatisch",
+    botTyping = { name -> "$name schreibt" },
+    teamTyping = "Das Team schreibt",
+    sending = "Wird gesendet…",
+    notSent = "Nicht gesendet",
+    tapToRetry = "Tippen zum Wiederholen",
+    discard = "Verwerfen",
+    uploading = { percent -> "Wird hochgeladen: $percent %" },
+    uploadFailed = "Datei konnte nicht hochgeladen werden",
+    sessionExpired = "Die Chat-Sitzung ist abgelaufen. Starte einen neuen Chat.",
+    conversationEnded = "Diese Unterhaltung ist beendet.",
+    unavailable = "Der Chat ist nicht verfügbar. Bitte versuche es erneut.",
+    sendFailed = "Die Nachricht konnte nicht gesendet werden.",
+    busy = "Das Team ist gerade ausgelastet. Bitte versuche es gleich noch einmal.",
+    attachmentsOff = "Dateianhänge sind in diesem Chat deaktiviert.",
+    typeNotAllowed = { name -> "$name: Dieser Dateityp ist nicht erlaubt." },
+    fileTooLarge = { name, maxMb -> "$name: Dateien dürfen höchstens ${n(maxMb)} MB groß sein." },
+    tooManyFiles = { max -> "Du kannst bis zu $max Dateien auf einmal anhängen." },
+    openAttachment = { name -> "$name öffnen" },
+    attachment = "Anhang",
+    image = "Bild",
+    preChatTitle = "Bevor es losgeht…",
+    firstName = "Vorname",
+    lastName = "Nachname",
+    email = "E-Mail",
+    phone = "Telefon",
+    required = { label -> "$label *" },
+    startChat = "Chat starten",
+)
+
+/** Every shipped language, by code. */
+public val GIOV_STRINGS: Map<String, GiovChatStrings> = mapOf("en" to EN, "fr" to FR, "es" to ES, "pt" to PT, "de" to DE)
+
+/** "fr-CA" becomes "fr", "pt_BR" becomes "pt"; anything not shipped falls back to English. */
+public fun resolveGiovLocale(value: String?): String {
+    val language = (value ?: "").trim().lowercase().split('-', '_').first()
+    return if (language in GIOV_LOCALES) language else "en"
+}
+
+/** The device language (BCP 47), or "en". */
+public fun giovDeviceLocale(): String {
+    val tag = try { Locale.getDefault().toLanguageTag() } catch (_: Exception) { "en" }
+    return if (tag.isEmpty() || tag == "und") "en" else tag
+}
+
+/** The strings for a locale (default: the device language) with the host's overrides on top. */
+public fun resolveGiovStrings(locale: String? = null, override: ((GiovChatStrings) -> GiovChatStrings)? = null): GiovChatStrings {
+    val base = GIOV_STRINGS.getValue(resolveGiovLocale(locale ?: giovDeviceLocale()))
+    return if (override == null) base else override(base)
+}

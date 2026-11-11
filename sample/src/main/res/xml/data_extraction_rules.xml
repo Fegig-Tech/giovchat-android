@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: the chat session is a bearer secret encrypted under a device-only Keystore key; keep it out of
+     cloud backup and device-to-device transfer. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="giov_chat_sessions.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="giov_chat_sessions.xml" />
+    </device-transfer>
+</data-extraction-rules>

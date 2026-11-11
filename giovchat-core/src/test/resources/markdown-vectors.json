@@ -1,0 +1,1333 @@
+{
+  "version": 1,
+  "reference": "apps/widget-web/src/lib/formatMessage.ts",
+  "vectors": [
+    {
+      "name": "plain text",
+      "input": "Hello there",
+      "html": "<p>Hello there</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Hello there",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "paragraphs and line breaks",
+      "input": "Hi there!\n\nYour order shipped.\nIt arrives Friday.",
+      "html": "<p>Hi there!</p><p>Your order shipped.<br />It arrives Friday.</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Hi there!",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Your order shipped.",
+                "marks": {}
+              }
+            ],
+            [
+              {
+                "text": "It arrives Friday.",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Windows line endings",
+      "input": "one\r\ntwo\r\n\r\nthree",
+      "html": "<p>one<br />two</p><p>three</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "one",
+                "marks": {}
+              }
+            ],
+            [
+              {
+                "text": "two",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "three",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HTML is escaped, never rendered",
+      "input": "<script>alert(1)</script> & <img src=x onerror=alert(1)>",
+      "html": "<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;img src=x onerror=alert(1)&gt;</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "<script>alert(1)</script> & <img src=x onerror=alert(1)>",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "entities stay literal",
+      "input": "&lt;b&gt; and &amp;",
+      "html": "<p>&amp;lt;b&amp;gt; and &amp;amp;</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "&lt;b&gt; and &amp;",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "quotes are escaped",
+      "input": "\"double\" and 'single'",
+      "html": "<p>&quot;double&quot; and &#39;single&#39;</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "\"double\" and 'single'",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bold, italic, strike, underline, code",
+      "input": "**bold** _em_ *em* ~~gone~~ <u>under</u> `code`",
+      "html": "<p><strong>bold</strong> <em>em</em> <em>em</em> <del>gone</del> <u>under</u> <code>code</code></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "bold",
+                "marks": {
+                  "bold": true
+                }
+              },
+              {
+                "text": " ",
+                "marks": {}
+              },
+              {
+                "text": "em",
+                "marks": {
+                  "italic": true
+                }
+              },
+              {
+                "text": " ",
+                "marks": {}
+              },
+              {
+                "text": "em",
+                "marks": {
+                  "italic": true
+                }
+              },
+              {
+                "text": " ",
+                "marks": {}
+              },
+              {
+                "text": "gone",
+                "marks": {
+                  "strike": true
+                }
+              },
+              {
+                "text": " ",
+                "marks": {}
+              },
+              {
+                "text": "under",
+                "marks": {
+                  "underline": true
+                }
+              },
+              {
+                "text": " ",
+                "marks": {}
+              },
+              {
+                "text": "code",
+                "marks": {
+                  "code": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "double underscore bold",
+      "input": "__also bold__",
+      "html": "<p><strong>also bold</strong></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "also bold",
+                "marks": {
+                  "bold": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "marks nest",
+      "input": "**bold _both_** then *x*",
+      "html": "<p><strong>bold <em>both</em></strong> then *x*</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "bold ",
+                "marks": {
+                  "bold": true
+                }
+              },
+              {
+                "text": "both",
+                "marks": {
+                  "bold": true,
+                  "italic": true
+                }
+              },
+              {
+                "text": " then *x*",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "italic right after bold",
+      "input": "**done***next*",
+      "html": "<p><strong>done</strong><em>next</em></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "done",
+                "marks": {
+                  "bold": true
+                }
+              },
+              {
+                "text": "next",
+                "marks": {
+                  "italic": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "strike around bold",
+      "input": "~~**both**~~",
+      "html": "<p><del><strong>both</strong></del></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "both",
+                "marks": {
+                  "bold": true,
+                  "strike": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "code spans are literal",
+      "input": "run `npm **i**` now and `a_b_c`",
+      "html": "<p>run <code>npm **i**</code> now and <code>a_b_c</code></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "run ",
+                "marks": {}
+              },
+              {
+                "text": "npm **i**",
+                "marks": {
+                  "code": true
+                }
+              },
+              {
+                "text": " now and ",
+                "marks": {}
+              },
+              {
+                "text": "a_b_c",
+                "marks": {
+                  "code": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "words with underscores and arithmetic stay text",
+      "input": "snake_case_name 2*3*4 and file_name.txt",
+      "html": "<p>snake_case_name 2*3*4 and file_name.txt</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "snake_case_name 2*3*4 and file_name.txt",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "markdown link",
+      "input": "see [docs](https://giov.test/d?a=1&b=2)",
+      "html": "<p>see <a href=\"https://giov.test/d?a=1&amp;b=2\" target=\"_blank\" rel=\"noopener noreferrer\">docs</a></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "see ",
+                "marks": {}
+              },
+              {
+                "text": "docs",
+                "marks": {},
+                "href": "https://giov.test/d?a=1&b=2"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bare link, trailing punctuation outside",
+      "input": "go to https://giov.test/x.",
+      "html": "<p>go to <a href=\"https://giov.test/x\" target=\"_blank\" rel=\"noopener noreferrer\">https://giov.test/x</a>.</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "go to ",
+                "marks": {}
+              },
+              {
+                "text": "https://giov.test/x",
+                "marks": {},
+                "href": "https://giov.test/x"
+              },
+              {
+                "text": ".",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link in parentheses",
+      "input": "(https://giov.test/in-parens) and more",
+      "html": "<p>(<a href=\"https://giov.test/in-parens\" target=\"_blank\" rel=\"noopener noreferrer\">https://giov.test/in-parens</a>) and more</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "(",
+                "marks": {}
+              },
+              {
+                "text": "https://giov.test/in-parens",
+                "marks": {},
+                "href": "https://giov.test/in-parens"
+              },
+              {
+                "text": ") and more",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mailto link",
+      "input": "[mail](mailto:hi@giov.test)",
+      "html": "<p><a href=\"mailto:hi@giov.test\" target=\"_blank\" rel=\"noopener noreferrer\">mail</a></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "mail",
+                "marks": {},
+                "href": "mailto:hi@giov.test"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unsafe schemes stay text",
+      "input": "[x](javascript:alert(1)) and [y](data:text/html,hi)",
+      "html": "<p>[x](javascript:alert(1)) and [y](data:text/html,hi)</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "[x](javascript:alert(1)) and [y](data:text/html,hi)",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "bold link",
+      "input": "**[bold link](https://a.test)**",
+      "html": "<p><strong><a href=\"https://a.test\" target=\"_blank\" rel=\"noopener noreferrer\">bold link</a></strong></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "bold link",
+                "marks": {
+                  "bold": true
+                },
+                "href": "https://a.test"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "underline is the only HTML tag",
+      "input": "<u>yes</u> <b>no</b> <U>case</U>",
+      "html": "<p><u>yes</u> &lt;b&gt;no&lt;/b&gt; <u>case</u></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "yes",
+                "marks": {
+                  "underline": true
+                }
+              },
+              {
+                "text": " <b>no</b> ",
+                "marks": {}
+              },
+              {
+                "text": "case",
+                "marks": {
+                  "underline": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "headings of every level become one style",
+      "input": "# One\n## Two\n###### Six",
+      "html": "<h4 class=\"gw-md-h\">One</h4><h4 class=\"gw-md-h\">Two</h4><h4 class=\"gw-md-h\">Six</h4>",
+      "tree": [
+        {
+          "type": "heading",
+          "content": [
+            {
+              "text": "One",
+              "marks": {}
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "content": [
+            {
+              "text": "Two",
+              "marks": {}
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "content": [
+            {
+              "text": "Six",
+              "marks": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "heading needs a space",
+      "input": "#hashtag stays text",
+      "html": "<p>#hashtag stays text</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "#hashtag stays text",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "rules",
+      "input": "above\n---\n***\n___\nbelow",
+      "html": "<p>above</p><hr /><hr /><hr /><p>below</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "above",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "below",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "quote over several lines",
+      "input": "> quoted **bold**\n> more\nafter",
+      "html": "<blockquote>quoted <strong>bold</strong><br />more</blockquote><p>after</p>",
+      "tree": [
+        {
+          "type": "quote",
+          "lines": [
+            [
+              {
+                "text": "quoted ",
+                "marks": {}
+              },
+              {
+                "text": "bold",
+                "marks": {
+                  "bold": true
+                }
+              }
+            ],
+            [
+              {
+                "text": "more",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "after",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fenced code keeps markup and spacing",
+      "input": "```\n**raw**\n  indented <b>\n```\nafter",
+      "html": "<pre><code>**raw**\n  indented &lt;b&gt;</code></pre><p>after</p>",
+      "tree": [
+        {
+          "type": "code",
+          "text": "**raw**\n  indented <b>"
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "after",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fence with a language tag",
+      "input": "```js\nconst a = 1;\n```",
+      "html": "<pre><code>const a = 1;</code></pre>",
+      "tree": [
+        {
+          "type": "code",
+          "text": "const a = 1;"
+        }
+      ]
+    },
+    {
+      "name": "unordered list markers",
+      "input": "- dash\n* star\n+ plus",
+      "html": "<ul><li>dash</li><li>star</li><li>plus</li></ul>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "dash",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "star",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "plus",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ordered list keeps its start",
+      "input": "3. three\n4. four",
+      "html": "<ol start=\"3\"><li>three</li><li>four</li></ol>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": true,
+          "start": 3,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "three",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "four",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ordered with parentheses",
+      "input": "1) one\n2) two",
+      "html": "<ol><li>one</li><li>two</li></ol>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": true,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "one",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "two",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nested list, one level",
+      "input": "- a\n  - a1\n  - a2\n- b",
+      "html": "<ul><li>a<ul><li>a1</li><li>a2</li></ul></li><li>b</li></ul>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "a",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": [
+                {
+                  "type": "list",
+                  "ordered": false,
+                  "start": 1,
+                  "items": [
+                    {
+                      "lines": [
+                        [
+                          {
+                            "text": "a1",
+                            "marks": {}
+                          }
+                        ]
+                      ],
+                      "children": []
+                    },
+                    {
+                      "lines": [
+                        [
+                          {
+                            "text": "a2",
+                            "marks": {}
+                          }
+                        ]
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "b",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "deeper indentation joins the nested list",
+      "input": "- a\n  - a1\n    - deeper\n- b",
+      "html": "<ul><li>a<ul><li>a1</li><li>deeper</li></ul></li><li>b</li></ul>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "a",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": [
+                {
+                  "type": "list",
+                  "ordered": false,
+                  "start": 1,
+                  "items": [
+                    {
+                      "lines": [
+                        [
+                          {
+                            "text": "a1",
+                            "marks": {}
+                          }
+                        ]
+                      ],
+                      "children": []
+                    },
+                    {
+                      "lines": [
+                        [
+                          {
+                            "text": "deeper",
+                            "marks": {}
+                          }
+                        ]
+                      ],
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "b",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "continuation lines stay in the item",
+      "input": "1. first\n   more about first\n2. second",
+      "html": "<ol><li>first<br />more about first</li><li>second</li></ol>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": true,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "first",
+                    "marks": {}
+                  }
+                ],
+                [
+                  {
+                    "text": "more about first",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "second",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "blank lines between items keep the list",
+      "input": "- one\n\n- two",
+      "html": "<ul><li>one</li><li>two</li></ul>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "one",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "two",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a list then a paragraph",
+      "input": "- one\nplain",
+      "html": "<ul><li>one</li></ul><p>plain</p>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "one",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "plain",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "switching list kinds starts a new list",
+      "input": "- bullet\n1. number",
+      "html": "<ul><li>bullet</li></ul><ol><li>number</li></ol>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "bullet",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "type": "list",
+          "ordered": true,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "number",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "marks inside list items",
+      "input": "- **bold** item with [link](https://a.test)",
+      "html": "<ul><li><strong>bold</strong> item with <a href=\"https://a.test\" target=\"_blank\" rel=\"noopener noreferrer\">link</a></li></ul>",
+      "tree": [
+        {
+          "type": "list",
+          "ordered": false,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "bold",
+                    "marks": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "text": " item with ",
+                    "marks": {}
+                  },
+                  {
+                    "text": "link",
+                    "marks": {},
+                    "href": "https://a.test"
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "streaming: unclosed bold",
+      "input": "**half",
+      "html": "<p>**half</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "**half",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "streaming: unclosed code span",
+      "input": "`open",
+      "html": "<p>`open</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "`open",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "streaming: unclosed link",
+      "input": "[label](https://a.test",
+      "html": "<p>[label](<a href=\"https://a.test\" target=\"_blank\" rel=\"noopener noreferrer\">https://a.test</a></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "[label](",
+                "marks": {}
+              },
+              {
+                "text": "https://a.test",
+                "marks": {},
+                "href": "https://a.test"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "streaming: unclosed fence runs to the end",
+      "input": "```\nstreaming",
+      "html": "<pre><code>streaming</code></pre>",
+      "tree": [
+        {
+          "type": "code",
+          "text": "streaming"
+        }
+      ]
+    },
+    {
+      "name": "unicode and emoji",
+      "input": "Café ✓ 🚚 **déjà vu**",
+      "html": "<p>Café ✓ 🚚 <strong>déjà vu</strong></p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Café ✓ 🚚 ",
+                "marks": {}
+              },
+              {
+                "text": "déjà vu",
+                "marks": {
+                  "bold": true
+                }
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a realistic reply",
+      "input": "Thanks for waiting! Here's what I found:\n\n1. Your order **#1042** shipped on *Monday*.\n2. Track it at https://track.example.test/1042.\n\n> Delivery usually takes 2–3 days.\n\nAnything else?",
+      "html": "<p>Thanks for waiting! Here&#39;s what I found:</p><ol><li>Your order <strong>#1042</strong> shipped on <em>Monday</em>.</li><li>Track it at <a href=\"https://track.example.test/1042\" target=\"_blank\" rel=\"noopener noreferrer\">https://track.example.test/1042</a>.</li></ol><blockquote>Delivery usually takes 2–3 days.</blockquote><p>Anything else?</p>",
+      "tree": [
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Thanks for waiting! Here's what I found:",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "list",
+          "ordered": true,
+          "start": 1,
+          "items": [
+            {
+              "lines": [
+                [
+                  {
+                    "text": "Your order ",
+                    "marks": {}
+                  },
+                  {
+                    "text": "#1042",
+                    "marks": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "text": " shipped on ",
+                    "marks": {}
+                  },
+                  {
+                    "text": "Monday",
+                    "marks": {
+                      "italic": true
+                    }
+                  },
+                  {
+                    "text": ".",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            },
+            {
+              "lines": [
+                [
+                  {
+                    "text": "Track it at ",
+                    "marks": {}
+                  },
+                  {
+                    "text": "https://track.example.test/1042",
+                    "marks": {},
+                    "href": "https://track.example.test/1042"
+                  },
+                  {
+                    "text": ".",
+                    "marks": {}
+                  }
+                ]
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "type": "quote",
+          "lines": [
+            [
+              {
+                "text": "Delivery usually takes 2–3 days.",
+                "marks": {}
+              }
+            ]
+          ]
+        },
+        {
+          "type": "paragraph",
+          "lines": [
+            [
+              {
+                "text": "Anything else?",
+                "marks": {}
+              }
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

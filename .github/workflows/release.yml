@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag, VERSION_NAME and GiovChatVersion.NAME agree
+        id: version
+        run: |
+          VERSION=$(sed -nE 's/^VERSION_NAME=(\S+).*/\1/p' gradle.properties)
+          NAME=$(sed -nE 's/.*const val NAME: String = "([^"]+)".*/\1/p' giovchat-core/src/main/kotlin/app/giovchat/core/GiovChatVersion.kt)
+          if [ -z "$VERSION" ]; then echo "::error::VERSION_NAME not found in gradle.properties"; exit 1; fi
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION_NAME=$VERSION (expected v$VERSION)"; exit 1
+          fi
+          if [ "$NAME" != "$VERSION" ]; then
+            echo "::error::GiovChatVersion.NAME=$NAME does not match VERSION_NAME=$VERSION"; exit 1
+          fi
+          if ! grep -qE "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test
+        run: ./gradlew test :giovchat-compose:assembleRelease publishToMavenLocal
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check whether this version is already on Maven Central
+        id: central
+        run: |
+          if curl -fsI "https://repo1.maven.org/maven2/app/giovchat/giovchat-core/$VERSION/giovchat-core-$VERSION.pom" > /dev/null; then
+            echo "::notice::app.giovchat:giovchat-core:$VERSION is already on Maven Central; skipping the publish."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.central.outputs.published != 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.central.outputs.published != 'true'
+        with:
+          cache-read-only: true
+      - name: Publish to Maven Central
+        if: steps.central.outputs.published != 'true'
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ORG_GRADLE_PROJECT_signingInMemoryKey" ]; then echo "::error::SIGNING_KEY secret is not set"; exit 1; fi
+          ./gradlew publishAndReleaseToMavenCentral
+
+  github-release:
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create the GitHub release
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "::notice::GitHub release $GITHUB_REF_NAME already exists; skipping."
+            exit 0
+          fi
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {on=1; next} /^## \[/ {if (on) exit} on' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$VERSION" --notes-file notes.md
