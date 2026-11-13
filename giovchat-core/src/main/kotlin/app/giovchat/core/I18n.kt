@@ -78,6 +78,10 @@ public class GiovChatStrings(
     public val phone: String,
     public val required: (String) -> String,
     public val startChat: String,
+    /** The button that replaces the composer once the team closed the conversation. */
+    public val startNewConversation: String = "Start a new conversation",
+    /** The rating card and the thumbs under GiovBot answers. */
+    public val rating: GiovRatingStrings = GiovRatingStrings.EN,
 ) {
     /** These strings with the given ones replaced. Blank strings are ignored. */
     public fun withOverrides(
@@ -126,6 +130,8 @@ public class GiovChatStrings(
         phone: String? = null,
         required: ((String) -> String)? = null,
         startChat: String? = null,
+        startNewConversation: String? = null,
+        rating: GiovRatingStrings? = null,
     ): GiovChatStrings = GiovChatStrings(
         loading = keep(loading) ?: this.loading,
         tryAgain = keep(tryAgain) ?: this.tryAgain,
@@ -172,6 +178,8 @@ public class GiovChatStrings(
         phone = keep(phone) ?: this.phone,
         required = required ?: this.required,
         startChat = keep(startChat) ?: this.startChat,
+        startNewConversation = keep(startNewConversation) ?: this.startNewConversation,
+        rating = rating ?: this.rating,
     )
 
     /** The sentence a person sees for a failure; the SDK never shows server text. */
@@ -233,6 +241,8 @@ private val EN: GiovChatStrings = GiovChatStrings(
     phone = "Phone",
     required = { label -> "$label *" },
     startChat = "Start chat",
+    startNewConversation = "Start a new conversation",
+    rating = GiovRatingStrings.EN,
 )
 
 private val FR: GiovChatStrings = GiovChatStrings(
@@ -281,6 +291,8 @@ private val FR: GiovChatStrings = GiovChatStrings(
     phone = "Téléphone",
     required = { label -> "$label *" },
     startChat = "Démarrer le chat",
+    startNewConversation = "Démarrer une nouvelle conversation",
+    rating = GiovRatingStrings.FR,
 )
 
 private val ES: GiovChatStrings = GiovChatStrings(
@@ -329,6 +341,8 @@ private val ES: GiovChatStrings = GiovChatStrings(
     phone = "Teléfono",
     required = { label -> "$label *" },
     startChat = "Iniciar chat",
+    startNewConversation = "Iniciar una conversación nueva",
+    rating = GiovRatingStrings.ES,
 )
 
 private val PT: GiovChatStrings = GiovChatStrings(
@@ -377,6 +391,8 @@ private val PT: GiovChatStrings = GiovChatStrings(
     phone = "Telefone",
     required = { label -> "$label *" },
     startChat = "Iniciar chat",
+    startNewConversation = "Iniciar uma nova conversa",
+    rating = GiovRatingStrings.PT,
 )
 
 private val DE: GiovChatStrings = GiovChatStrings(
@@ -425,6 +441,8 @@ private val DE: GiovChatStrings = GiovChatStrings(
     phone = "Telefon",
     required = { label -> "$label *" },
     startChat = "Chat starten",
+    startNewConversation = "Neue Unterhaltung starten",
+    rating = GiovRatingStrings.DE,
 )
 
 /** Every shipped language, by code. */

@@ -152,6 +152,10 @@ public data class GiovMessage(
     val streamId: String? = null,
     /** A GiovBot reply still being written. */
     val isStreaming: Boolean = false,
+    /** The request to rate the conversation this message carries (a `rating` block), if any. */
+    val rating: GiovRatingBlock? = null,
+    /** The visitor's own thumb on this GiovBot answer. */
+    val feedback: GiovAnswerVote? = null,
 ) {
     /**
      * A stable list key: it is the same before and after the server stores the message and when a streamed
@@ -193,6 +197,9 @@ public data class GiovMessage(
                 senderAvatar = if (person) safeHttpUrl(map["senderAvatar"]) else null,
                 attachments = parseAttachments(map["attachmentId"] ?: map["attachment_id"], map["attachmentPreviews"] ?: map["attachment_previews"]),
                 streamId = map["streamId"].asNonEmpty(),
+                // Only the rating block is drawn; every other block type is ignored (unknown blocks must be).
+                rating = if (agent) map["blocks"].asArray()?.firstNotNullOfOrNull { GiovRatingBlock.fromJson(it) } else null,
+                feedback = if (isBot) GiovAnswerVote.fromWire(map["feedback"].asString()) else null,
             )
         }
     }

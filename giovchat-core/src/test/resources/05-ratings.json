@@ -1,0 +1,85 @@
+{
+  "id": "ratings",
+  "title": "A rating card from the team, answering it, changing it, the realtime update and thumbs refusals",
+  "workspace": "plain",
+  "requires": ["agent"],
+  "steps": [
+    {
+      "http": { "method": "POST", "path": "/conversations", "json": { "tenantId": "{{tenantId}}" } },
+      "expect": { "status": 200 },
+      "save": { "conversationId": "body.conversationId", "sessionToken": "body.sessionToken" }
+    },
+    {
+      "http": { "method": "POST", "path": "/auth/widget-token", "auth": "session", "json": { "tenantId": "{{tenantId}}", "conversationId": "{{conversationId}}" } },
+      "expect": { "status": 200 },
+      "save": { "visitorToken": "body.token" }
+    },
+    { "connect": { "socket": "visitor" } },
+    {
+      "note": "the visitor writes first: there is nothing to rate before that",
+      "send": { "socket": "visitor", "frame": { "type": "message", "content": "My parcel is late", "clientMessageId": "conformance-rating-m1" } }
+    },
+    {
+      "receive": { "socket": "visitor", "match": { "type": "message_ack", "clientMessageId": "conformance-rating-m1" } }
+    },
+    {
+      "note": "the team asks for a rating (agent API, outside this spec)",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating-request", "auth": "agent", "outsideSpec": true, "json": {} },
+      "expect": { "status": 201 },
+      "save": { "requestId": "body.requestId", "ratingMessageId": "body.messageId" }
+    },
+    {
+      "note": "the card arrives as a chat message with a rating block",
+      "receive": { "socket": "visitor", "match": { "role": "agent", "id": "{{ratingMessageId}}", "content": "<nonempty>", "blocks": [{ "type": "rating", "requestId": "{{requestId}}", "closesAt": "<number>" }] } }
+    },
+    {
+      "note": "a score outside 1 to 5 is refused",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "auth": "visitor", "json": { "requestId": "{{requestId}}", "score": 9 } },
+      "expect": { "status": 400, "body": { "error": "invalid_rating" } }
+    },
+    {
+      "note": "answering the card",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "auth": "visitor", "json": { "requestId": "{{requestId}}", "score": 4, "comment": "Quick answer" } },
+      "expect": { "status": 200, "body": { "requestId": "{{requestId}}", "score": 4, "comment": "Quick answer", "closesAt": "<number>", "ratedAt": "<number>" } }
+    },
+    {
+      "note": "the same answer again is a no-op",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "auth": "visitor", "json": { "requestId": "{{requestId}}", "score": 4, "comment": "Quick answer" } },
+      "expect": { "status": 200, "body": { "score": 4 } }
+    },
+    {
+      "note": "changing it within the window",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "auth": "visitor", "json": { "score": 5 } },
+      "expect": { "status": 200, "body": { "score": 5, "comment": null } }
+    },
+    {
+      "note": "the socket carries the updated card",
+      "receive": { "socket": "visitor", "match": { "type": "rating", "requestId": "{{requestId}}", "messageId": "{{ratingMessageId}}", "score": 5 } }
+    },
+    {
+      "note": "history returns the card with the answer applied",
+      "http": { "method": "GET", "path": "/conversations/{{conversationId}}/history", "auth": "visitor" },
+      "expect": { "status": 200 }
+    },
+    {
+      "note": "an unknown card is refused",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "auth": "visitor", "json": { "requestId": "no-such-request", "score": 3 } },
+      "expect": { "status": 404, "body": { "error": "request_not_found" } }
+    },
+    {
+      "note": "a visitor message is not a GiovBot answer, so it cannot get a thumb",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/messages/{{ratingMessageId}}/feedback", "auth": "visitor", "json": { "value": "up" } },
+      "expect": { "status": 404, "body": { "error": "message_not_found" } }
+    },
+    {
+      "note": "a vote needs up, down or none",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/messages/{{ratingMessageId}}/feedback", "auth": "visitor", "json": { "value": "maybe" } },
+      "expect": { "status": 400, "body": { "error": "invalid_feedback" } }
+    },
+    {
+      "note": "ratings need the visitor token",
+      "http": { "method": "POST", "path": "/conversations/{{conversationId}}/rating", "json": { "score": 3 } },
+      "expect": { "status": 401 }
+    }
+  ]
+}

@@ -193,31 +193,8 @@ class ControllerTest {
     }
 
     @Test
-    fun aClosedOrDeletedConversationIsForgottenResume409HistoryClosedHistory404DeletedCloseFrame() {
-        // Resume answers 409.
-        var rig = CRig(stored = testSession)
-        rig.server.resumeStatus = 409
-        rig.start()
-        assertEquals(GiovChatPhase.READY, rig.phase)
-        assertEquals(listOf("delete"), rig.store.log)
-        assertTrue(rig.sockets.all.isEmpty())
-        rig.dispose()
-
-        // History says closed.
-        rig = CRig(stored = testSession)
-        rig.server.status = "closed"
-        rig.start()
-        rig.open()
-        assertEquals(GiovChatPhase.READY, rig.phase)
-        assertTrue(rig.ui.error is GiovConversationClosedException)
-        assertEquals(listOf("delete"), rig.store.log)
-        assertFalse(rig.ui.hasConversation)
-        assertTrue(rig.socket.closedByClient)
-        assertTrue("the next message starts a new conversation", rig.settle { rig.controller.send("again") })
-        rig.server.status = "open"
-        rig.pump()
-        assertEquals(1, rig.server.count("created"))
-        rig.dispose()
+    fun aDeletedConversationIsForgottenHistory404DeletedCloseFrame() {
+        var rig: CRig
 
         // History answers 404.
         rig = CRig(stored = testSession)
@@ -237,6 +214,81 @@ class ControllerTest {
         assertEquals(listOf("delete"), rig.store.log)
         rig.elapse(60_000)
         assertEquals("no reconnect for a deleted conversation", 1, rig.sockets.all.size)
+        rig.dispose()
+    }
+
+    @Test
+    fun aClosedConversationOnResume409IsShownReadOnlyWhenTheTokenAllows() {
+        val rig = CRig(stored = testSession)
+        rig.server.resumeStatus = 409
+        rig.server.status = "closed"
+        rig.server.history = listOf(
+            mapOf("id" to "h1", "role" to "user", "content" to "Hi", "createdAt" to 1),
+            mapOf("id" to "h2", "role" to "agent", "content" to "Thanks for writing", "createdAt" to 2),
+        )
+        rig.start()
+        rig.open()
+        assertTrue(rig.ui.conversationClosed)
+        assertEquals("the history stays visible", listOf("h1", "h2"), rig.ui.messages.map { it.id })
+        assertTrue("the stored conversation is kept until a new one starts", rig.store.log.isEmpty())
+        rig.dispose()
+    }
+
+    @Test
+    fun aClosedConversationOnResume409DegradesWhenTheTokenIsRefused() {
+        val rig = CRig(stored = testSession)
+        rig.server.resumeStatus = 409
+        rig.server.tokenStatuses += 403
+        rig.start()
+        assertEquals(GiovChatPhase.READY, rig.phase)
+        assertFalse(rig.ui.conversationClosed)
+        assertTrue(rig.ui.error is GiovConversationClosedException)
+        assertEquals(listOf("delete"), rig.store.log)
+        assertTrue(rig.sockets.all.isEmpty())
+        rig.dispose()
+    }
+
+    @Test
+    fun aClosedConversationInHistoryStaysReadOnlyAndAMessageStartsANewOneThatClearsIt() {
+        val rig = CRig(stored = testSession)
+        rig.server.status = "closed"
+        rig.server.history = listOf(mapOf("id" to "h1", "role" to "user", "content" to "Hi", "createdAt" to 1))
+        rig.start()
+        rig.open()
+        assertEquals("the socket stays up: a rating card can still arrive", GiovChatPhase.ACTIVE, rig.phase)
+        assertTrue(rig.ui.conversationClosed)
+        assertTrue(rig.ui.hasConversation)
+        assertEquals(listOf("h1"), rig.ui.messages.map { it.id })
+        assertTrue(rig.store.log.isEmpty())
+        assertFalse(rig.socket.closedByClient)
+        assertTrue("writing on a closed conversation starts a new one", rig.settle { rig.controller.send("again") })
+        rig.server.status = "open"
+        rig.server.history = emptyList()
+        rig.pump()
+        assertEquals("delete", rig.store.log.first())
+        assertEquals(1, rig.server.count("created"))
+        assertFalse(rig.ui.conversationClosed)
+        assertTrue("the closed conversation is gone", rig.ui.messages.none { it.id == "h1" })
+        rig.dispose()
+    }
+
+    @Test
+    fun startNewConversationLeavesTheClosedOneAndWaitsForTheNextMessage() {
+        val rig = CRig(stored = testSession)
+        rig.server.status = "closed"
+        rig.server.history = listOf(mapOf("id" to "h1", "role" to "user", "content" to "Hi", "createdAt" to 1))
+        rig.start()
+        rig.open()
+        assertTrue(rig.ui.conversationClosed)
+        rig.settle { rig.controller.startNewConversation() }
+        assertEquals(GiovChatPhase.READY, rig.phase)
+        assertFalse(rig.ui.conversationClosed || rig.ui.hasConversation)
+        assertTrue(rig.ui.messages.isEmpty())
+        assertEquals(listOf("delete"), rig.store.log)
+        assertTrue(rig.socket.closedByClient)
+        assertEquals("nothing is created until the visitor writes", 0, rig.server.count("created"))
+        rig.settle { rig.controller.startNewConversation() }
+        assertEquals("an open (or already left) conversation is not touched", listOf("delete"), rig.store.log)
         rig.dispose()
     }
 

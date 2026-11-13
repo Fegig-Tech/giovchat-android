@@ -48,8 +48,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.giovchat.core.GiovAnswerVote
 import app.giovchat.core.GiovDelivery
 import app.giovchat.core.GiovMessage
+import app.giovchat.core.GiovRatingBlock
 import app.giovchat.core.GiovRole
 import app.giovchat.core.messageSenderLabel
 import java.util.Date
@@ -152,6 +154,12 @@ internal fun MessageBubble(
     agentName: String?,
     onRetry: (() -> Unit)?,
     onDiscard: (() -> Unit)?,
+    /** The rating card to draw under the text; null draws none. */
+    rating: GiovRatingBlock? = null,
+    onRate: (suspend (Int, String?) -> Unit)? = null,
+    /** Thumbs under a GiovBot answer (the visitor's vote is [GiovMessage.feedback]); false draws none. */
+    thumbs: Boolean = false,
+    onVote: (suspend (GiovAnswerVote?, String?) -> Unit)? = null,
 ) {
     val look = LocalGiovLook.current
     val strings = look.strings
@@ -184,8 +192,8 @@ internal fun MessageBubble(
         visitor = visitor,
         modifier = Modifier.testTag("bubble:${message.key}").semantics { this[GiovFillKey] = (if (visitor) look.visitorBubble else look.agentBubble).toArgb() },
         leading = if (isBot) ({ GiovBotMark() }) else null,
-        below = if (failed) ({
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        below = if (failed || (rating != null && onRate != null) || (thumbs && onVote != null)) ({
+            if (failed) Row(verticalAlignment = Alignment.CenterVertically) {
                 val retryText = if (onRetry != null) "${strings.notSent} · ${strings.tapToRetry}" else strings.notSent
                 val retryModifier = Modifier
                     .testTag("giov-retry")
@@ -208,6 +216,14 @@ internal fun MessageBubble(
                     }
                 }
             }
+            if (rating != null && onRate != null) {
+                RatingCard(
+                    rating,
+                    onRate,
+                    Modifier.padding(top = 6.dp).background(look.agentBubble, RoundedCornerShape(BubbleRadius)).padding(12.dp),
+                )
+            }
+            if (thumbs && onVote != null) AnswerThumbs(message.feedback, onVote)
         }) else null,
     ) {
         Column(

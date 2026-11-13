@@ -85,7 +85,11 @@ import app.giovchat.core.GiovChatException
 import app.giovchat.core.GiovChatPhase
 import app.giovchat.core.GiovChatStrings
 import app.giovchat.core.GiovConnectionStatus
+import app.giovchat.core.GiovAnswerVote
 import app.giovchat.core.GiovContact
+import app.giovchat.core.GiovRatingRequest
+import app.giovchat.core.GiovRatingResult
+import app.giovchat.core.allowsAnswerFeedback
 import app.giovchat.core.GiovHeaderKind
 import app.giovchat.core.GiovHttp
 import app.giovchat.core.GiovPickedFile
@@ -117,7 +121,6 @@ public class GiovPickerRequest(
  */
 public typealias GiovAttachmentPicker = suspend (GiovPickerRequest) -> List<GiovPickedFile>
 
-private const val BRANDING_URL = "https://giovchat.app/?utm_source=android_widget&utm_medium=powered_by"
 
 /**
  * Creates a [GiovChatController] and keeps it for as long as the arguments stay the same: in a ViewModel of the
@@ -145,11 +148,16 @@ public fun rememberGiovChatController(
     onConversationStart: ((String) -> Unit)? = null,
     onConnectionStatusChange: ((GiovConnectionStatus) -> Unit)? = null,
     onUnreadCountChange: ((Int) -> Unit)? = null,
+    onRatingRequested: ((GiovRatingRequest) -> Unit)? = null,
+    onRatingSubmitted: ((GiovRatingResult) -> Unit)? = null,
+    onAnswerFeedback: ((messageId: String, vote: GiovAnswerVote?) -> Unit)? = null,
+    showsRatingCard: Boolean = true,
+    showsAnswerFeedback: Boolean = true,
     http: GiovHttp? = null,
     socketFactory: GiovSocketFactory? = null,
 ): GiovChatController {
     val store = sessionStore ?: ProcessSessionStore
-    val arguments = listOf(tenantKey, baseUrl, contact, sessionKey, store, keepConnected, locale, http, socketFactory)
+    val arguments = listOf(tenantKey, baseUrl, contact, sessionKey, store, keepConnected, locale, http, socketFactory, showsRatingCard, showsAnswerFeedback)
     val owner = LocalViewModelStoreOwner.current
     // One holder per call site, so two chats on one screen keep their own controllers.
     val holder: ControllerHolder = if (owner != null) {
@@ -167,12 +175,18 @@ public fun rememberGiovChatController(
         holder.onConversationStart = onConversationStart
         holder.onConnectionStatusChange = onConnectionStatusChange
         holder.onUnreadCountChange = onUnreadCountChange
+        holder.onRatingRequested = onRatingRequested
+        holder.onRatingSubmitted = onRatingSubmitted
+        holder.onAnswerFeedback = onAnswerFeedback
     }
     return holder.obtain(arguments) {
         holder.onError = onError
         holder.onConversationStart = onConversationStart
         holder.onConnectionStatusChange = onConnectionStatusChange
         holder.onUnreadCountChange = onUnreadCountChange
+        holder.onRatingRequested = onRatingRequested
+        holder.onRatingSubmitted = onRatingSubmitted
+        holder.onAnswerFeedback = onAnswerFeedback
         GiovChatController(
             tenantKey = tenantKey,
             baseUrl = baseUrl,
@@ -187,6 +201,11 @@ public fun rememberGiovChatController(
             onConversationStart = { holder.onConversationStart?.invoke(it) },
             onConnectionStatusChange = { holder.onConnectionStatusChange?.invoke(it) },
             onUnreadCountChange = { holder.onUnreadCountChange?.invoke(it) },
+            onRatingRequested = { holder.onRatingRequested?.invoke(it) },
+            onRatingSubmitted = { holder.onRatingSubmitted?.invoke(it) },
+            onAnswerFeedback = { id, vote -> holder.onAnswerFeedback?.invoke(id, vote) },
+            showsRatingCard = showsRatingCard,
+            showsAnswerFeedback = showsAnswerFeedback,
             http = http ?: OkHttpGiovHttp(),
             socketFactory = socketFactory ?: OkHttpGiovSocketFactory(),
         )
@@ -210,6 +229,9 @@ internal class ControllerHolder : ViewModel() {
     @Volatile var onConversationStart: ((String) -> Unit)? = null
     @Volatile var onConnectionStatusChange: ((GiovConnectionStatus) -> Unit)? = null
     @Volatile var onUnreadCountChange: ((Int) -> Unit)? = null
+    @Volatile var onRatingRequested: ((GiovRatingRequest) -> Unit)? = null
+    @Volatile var onRatingSubmitted: ((GiovRatingResult) -> Unit)? = null
+    @Volatile var onAnswerFeedback: ((messageId: String, vote: GiovAnswerVote?) -> Unit)? = null
 
     fun obtain(arguments: List<Any?>, create: () -> GiovChatController): GiovChatController {
         val current = controller
@@ -274,6 +296,11 @@ public fun GiovChat(
     onConversationStart: ((String) -> Unit)? = null,
     onConnectionStatusChange: ((GiovConnectionStatus) -> Unit)? = null,
     onUnreadCountChange: ((Int) -> Unit)? = null,
+    onRatingRequested: ((GiovRatingRequest) -> Unit)? = null,
+    onRatingSubmitted: ((GiovRatingResult) -> Unit)? = null,
+    onAnswerFeedback: ((messageId: String, vote: GiovAnswerVote?) -> Unit)? = null,
+    showsRatingCard: Boolean = true,
+    showsAnswerFeedback: Boolean = true,
     onClose: (() -> Unit)? = null,
     theme: GiovThemeMode? = null,
     primaryColor: Color? = null,
@@ -300,6 +327,11 @@ public fun GiovChat(
         onConversationStart = onConversationStart,
         onConnectionStatusChange = onConnectionStatusChange,
         onUnreadCountChange = onUnreadCountChange,
+        onRatingRequested = onRatingRequested,
+        onRatingSubmitted = onRatingSubmitted,
+        onAnswerFeedback = onAnswerFeedback,
+        showsRatingCard = showsRatingCard,
+        showsAnswerFeedback = showsAnswerFeedback,
         http = http,
         socketFactory = socketFactory,
     )
@@ -457,7 +489,7 @@ public fun GiovChat(
                         else -> Conversation(controller, ui, attachmentPicker, draft, input) { input = it }
                     }
                 }
-                if (config?.showBranding != false) Branding(look.openUrl)
+                if (config?.showBranding != false) BrandingFooter(look.style, look.openUrl)
             }
         }
     }
@@ -590,14 +622,28 @@ private fun Conversation(
                     agentName = ui.agentName,
                     onRetry = id?.let { { controller.retryMessage(it) } },
                     onDiscard = id?.let { { controller.discardMessage(it) } },
+                    rating = message.rating?.takeIf { ui.showsRatingCard && ui.ratingsAvailable && !it.replaced },
+                    onRate = { score, comment -> controller.submitRating(score, comment, message.rating?.requestId) },
+                    thumbs = ui.showsAnswerFeedback && ui.feedbackAvailable && message.allowsAnswerFeedback,
+                    onVote = { vote, reason -> controller.submitAnswerFeedback(message.id, vote, reason) },
                 )
             }
             if (ui.agentTyping) item(key = "giov-typing-row") { TypingIndicator(ui.agentTypingIsBot) }
         }
+        val sheetBlock = ui.ratingRequest?.takeIf { ui.ratingSheetPresented }?.let { request -> ui.messages.firstOrNull { it.id == request.messageId }?.rating }
+        if (sheetBlock != null) {
+            RatingSheet(
+                block = sheetBlock,
+                onRate = { score, comment -> controller.submitRating(score, comment, sheetBlock.requestId) },
+                onClose = { controller.dismissRating() },
+            )
+        }
         if (files.isNotEmpty() || problem != null) {
             PendingFiles(files, ui.uploads, ui.sending, problem, onRemove = { index -> files = files.filterIndexed { i, _ -> i != index } })
         }
-        Composer(
+        if (ui.conversationClosed) {
+            ClosedBar(onStart = { scope.launch { controller.startNewConversation() } })
+        } else Composer(
             text = input,
             onTextChange = {
                 onInput(it)
@@ -678,40 +724,6 @@ private fun ErrorView(text: String, onRetry: () -> Unit) {
         ) {
             BasicText(label, style = look.buttonTextStyle)
         }
-    }
-}
-
-/** "Powered by GiovChat". Deliberately isolated from the style overrides, like the other SDKs. */
-@Composable
-private fun Branding(openUrl: (String) -> Unit) {
-    val text: AnnotatedString = remember {
-        buildAnnotatedString {
-            append("Powered by ")
-            withStyle(SpanStyle(color = Color(0xFF7C3AED), fontWeight = FontWeight.Bold)) { append("GiovChat") }
-        }
-    }
-    Box(
-        Modifier
-            .testTag("giov-branding")
-            .fillMaxWidth()
-            .background(Color.White)
-            .topHairline(Color(0xFFEBEBEB))
-            .defaultMinSize(minHeight = 48.dp)
-            .semantics {
-                contentDescription = "Powered by GiovChat"
-                role = Role.Button
-            }
-            .clickable(role = Role.Button) {
-                try {
-                    openUrl(BRANDING_URL)
-                } catch (_: Exception) {
-                    // Nothing can open it.
-                }
-            }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicText(text, style = TextStyle(color = Color(0xFF52525B), fontSize = 12.sp))
     }
 }
 

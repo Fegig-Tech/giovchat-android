@@ -4,6 +4,30 @@ All notable changes to the Giov Android SDK. The format follows Keep a Changelog
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
+### Added
+
+- The "Powered by GiovChat" footer follows the app's style: `GiovChatStyleOverrides.branding`
+  (`GiovBrandingOverride(fontFamily, color, brandColor, backgroundColor)`; the top-level `fontFamily` applies too).
+  Colours are used only while they stay readable (opaque, 4.5:1 against the footer background), otherwise the defaults
+  apply; the footer cannot be hidden by a style (only the workspace's `showBranding = false` removes it). New public
+  composable `GiovBranding(controller, showBranding, styleOverrides, onOpenUrl)` for custom UIs built on
+  `GiovChatController`.
+- Conversation ratings and answer feedback. The chat draws the rating card a teammate (or GiovBot) sends: five faces,
+  an optional comment, "Thanks" with the chosen face, changes until the card closes, replaced and closed cards handled.
+  GiovBot answers get thumbs up / down with an optional reason. Core API on `GiovChatController`:
+  `submitRating(score, comment, requestId)`, `submitAnswerFeedback(messageId, vote, reason)`, `pendingRating` /
+  `GiovChatUiState.ratingRequest`, `presentRating()` / `dismissRating()`, the constructor callbacks
+  `onRatingRequested`, `onRatingSubmitted` and `onAnswerFeedback`, and `showsRatingCard` / `showsAnswerFeedback` to turn
+  the built-in UI off (also on `GiovChat` and `rememberGiovChatController`). Refusals are typed
+  (`GiovChatException.ratingFailure`). Strings in all five languages (`GiovChatStrings.rating`). Older servers without
+  the routes: the controls are hidden.
+- Closed conversations stay on screen read-only (history, an open rating card) instead of being forgotten; the composer
+  gives way to "Start a new conversation" (`GiovChatController.startNewConversation()`,
+  `GiovChatUiState.conversationClosed`, `GiovChatStrings.startNewConversation`). The `conversation_state` frame's
+  `status` switches the view at once; a 409 on resume loads the history read-only when the token allows.
+
 ## [0.1.0]
 
 First public release.

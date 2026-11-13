@@ -36,8 +36,8 @@ Then add the module you need:
 
 ```kotlin
 dependencies {
-    implementation("app.giovchat:giovchat-compose:0.1.0")   // the Compose screen; brings giovchat-core
-    // implementation("app.giovchat:giovchat-core:0.1.0")   // only the controller, for your own UI
+    implementation("app.giovchat:giovchat-compose:0.2.0")   // the Compose screen; brings giovchat-core
+    // implementation("app.giovchat:giovchat-core:0.2.0")   // only the controller, for your own UI
 }
 ```
 
@@ -129,6 +129,19 @@ Common to both overloads:
 `GiovChat(controller = ...)` also takes `autoStart`, `forwardLifecycle`, `initialContact` (pre-fills the pre-chat
 form), `locale` and `strings`.
 
+## Build your own UI
+
+`GiovChatController` is the whole session without any UI; draw it yourself and keep the footer with the drop-in
+`GiovBranding` composable. It follows the controller's configuration and disappears only when the workspace removed the
+branding (Business and Advanced plans).
+
+```kotlin
+Column {
+    MyMessages(chat)
+    GiovBranding(controller = chat)   // or GiovBranding(showBranding = true)
+}
+```
+
 ## Session storage
 
 The session token is a bearer secret that proves the device owns the conversation. The default store is in memory
@@ -183,6 +196,35 @@ GiovChat(
 sign-in. Never put the identity secret in the app. A `userId` without a matching `userHash` is treated like any other
 untrusted detail. Details you supply also pre-fill the pre-chat form, which asks only for the fields the workspace
 requires and you did not provide (and that are valid).
+
+## Ratings and answer feedback
+
+A teammate (or GiovBot, when it resolves a chat) can ask the visitor to rate the conversation. `GiovChat` draws the card
+by itself: five faces (Very bad to Great), an optional comment, then "Thanks" with the chosen face. The visitor may change
+the answer until the card closes (the server decides). GiovBot answers get thumbs up / down; a thumbs-down asks for an
+optional short reason. Servers without ratings show none of it. A conversation the team closed stays on screen read-only
+(an open rating card stays answerable) and the composer becomes "Start a new conversation".
+
+For your own UI, or to react in the app:
+
+```kotlin
+val chat = GiovChatController(
+    tenantKey = "ws_123",
+    showsRatingCard = false,                                   // you draw the card yourself (default true)
+    onRatingRequested = { request -> showMyRatingScreen(request) },   // once per request
+    onRatingSubmitted = { result -> track(result.score) },
+    onAnswerFeedback = { messageId, vote -> track(vote) },     // vote is null when taken back
+)
+
+val request = chat.pendingRating                               // the open request, or null
+val result = chat.submitRating(score = 5, comment = "Fast!")   // suspend, 1..5
+chat.submitAnswerFeedback(messageId, GiovAnswerVote.DOWN, reason = "Wrong plan")
+chat.presentRating()                                           // open the built-in rating dialog in GiovChat
+```
+
+`submitRating` shows the answer at once and rolls it back when refused. The thrown `GiovChatException` has a typed
+`ratingFailure` (`Closed`, `Replaced`, `TooManyChanges`, `RateLimited(retryAfterSeconds)`, ...).
+`controller.startNewConversation()` (or the visitor's next message) clears a closed conversation.
 
 ## Attachments
 
@@ -268,6 +310,14 @@ data = { type: "giov.message", tenantId, conversationId, messageId }
 
 Show the notification yourself in `onMessageReceived` when `data["type"] == "giov.message"` (for data-only messages) and
 open the activity that hosts `GiovChat` from its `PendingIntent`. The `sample` app has this wiring as comments.
+
+## Footer style
+
+The "Powered by GiovChat" footer follows your style but stays on. Set `GiovChatStyleOverrides.branding =
+GiovBrandingOverride(fontFamily, color, brandColor, backgroundColor)` (the top-level `fontFamily` applies too): the
+background must be opaque; the text and link colours must be opaque and reach 4.5:1 against it, otherwise the defaults
+(text 0xFF52525B, link 0xFF7C3AED, white) apply and a warning is logged. Size (12 sp), layout and the 48 dp tap height are
+fixed.
 
 ## Languages and text
 

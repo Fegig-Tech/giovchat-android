@@ -52,6 +52,13 @@ private const val TYPING_IDLE_MS: Long = 2500
  * @param overrideStrings replaces individual interface strings, e.g. `{ it.withOverrides(sendMessage = "Mandar") }`.
  * @param backgroundGraceMs how long the app may be in the background before the socket is closed (so pushes
  *   arrive).
+ * @param onRatingRequested a rating request arrived (live, or found in the history), once per request: the visitor can
+ *   answer it with [submitRating].
+ * @param onRatingSubmitted a rating was saved by the server (from the built-in card or [submitRating]).
+ * @param onAnswerFeedback a thumb on a GiovBot answer was saved: the message id and the vote (null when taken back).
+ * @param showsRatingCard whether the built-in chat UI draws the rating card; turn it off when the app draws its own
+ *   from [GiovChatUiState.ratingRequest].
+ * @param showsAnswerFeedback whether the built-in chat UI draws thumbs under GiovBot answers.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 public class GiovChatController(
@@ -69,6 +76,11 @@ public class GiovChatController(
     private val onConversationStart: ((conversationId: String) -> Unit)? = null,
     private val onConnectionStatusChange: ((GiovConnectionStatus) -> Unit)? = null,
     private val onUnreadCountChange: ((Int) -> Unit)? = null,
+    private val onRatingRequested: ((GiovRatingRequest) -> Unit)? = null,
+    private val onRatingSubmitted: ((GiovRatingResult) -> Unit)? = null,
+    private val onAnswerFeedback: ((messageId: String, vote: GiovAnswerVote?) -> Unit)? = null,
+    public val showsRatingCard: Boolean = true,
+    public val showsAnswerFeedback: Boolean = true,
     http: GiovHttp = OkHttpGiovHttp(),
     socketFactory: GiovSocketFactory = OkHttpGiovSocketFactory(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1),
@@ -136,6 +148,17 @@ public class GiovChatController(
     private var status = GiovConnectionStatus.DISCONNECTED
     private var conversationIdValue: String? = null
 
+    /**
+     * The team closed the conversation: it stays on screen read-only (history, an open rating card) until the visitor
+     * starts a new one.
+     */
+    private var closed = false
+
+    /** The stored conversation answered the resume with 409 (closed): its history is loaded read-only if the token allows. */
+    private var resumedClosed = false
+    private val announcedRatings = HashSet<String>()
+    private var ratingSheet = false
+
     private class PushRegistration(val token: String, val platform: GiovPushPlatform, val options: GiovPushOptions)
 
     private class PushRequest(
@@ -145,7 +168,9 @@ public class GiovChatController(
         val done: CompletableDeferred<GiovPushResult>,
     )
 
-    private val mutableState = MutableStateFlow(GiovChatUiState(visible = visible))
+    private val mutableState = MutableStateFlow(
+        GiovChatUiState(visible = visible, showsRatingCard = showsRatingCard, showsAnswerFeedback = showsAnswerFeedback),
+    )
 
     /** Everything the chat screen draws. A new value is published after every change. */
     public val state: StateFlow<GiovChatUiState> = mutableState.asStateFlow()
@@ -282,6 +307,10 @@ public class GiovChatController(
             pushRequest = null
             startNow = false
             hasConversation = false
+            closed = false
+            resumedClosed = false
+            announcedRatings.clear()
+            ratingSheet = false
             messages = emptyList()
             drafts.clear()
             agentTyping = false
@@ -377,7 +406,7 @@ public class GiovChatController(
             cancelSubs()
             client.disconnect()
             val failure = e.toGiovException()
-            if (failure is GiovConversationClosedException) {
+            if (failure is GiovConversationClosedException || (resumedClosed && failure !is GiovNetworkException)) {
                 forget(generation)
                 return
             }
@@ -407,6 +436,8 @@ public class GiovChatController(
     }
 
     private suspend fun clearSession() {
+        closed = false
+        resumedClosed = false
         session = null
         conversationIdValue = null
         hasConversation = false
@@ -472,7 +503,13 @@ public class GiovChatController(
             } catch (failure: GiovChatException) {
                 if (!alive()) return
                 if (failure !is GiovSessionExpiredException && failure !is GiovConversationClosedException && failure.status != 404) throw failure
-                clearSession()
+                if (failure is GiovConversationClosedException && failure.status == 409) {
+                    // A closed conversation: keep it and load its history read-only when the token allows; otherwise the
+                    // connection below fails and the chat degrades to "conversation ended".
+                    resumedClosed = true
+                } else {
+                    clearSession()
+                }
             }
         }
         if (!alive()) return
@@ -503,6 +540,8 @@ public class GiovChatController(
             if (!alive()) return
             startNow = false
             session = created
+            closed = false
+            resumedClosed = false
             try {
                 store.write(scopeKey, created)
             } catch (e: CancellationException) {
@@ -538,13 +577,26 @@ public class GiovChatController(
             }
             if (!alive()) return
             if (history.closed) {
-                forget(generation)
+                // The team closed the conversation. It stays on screen read-only: the history is shown, a rating card
+                // stays interactive until its closesAt (the token and the socket keep working), and the composer gives
+                // way to "Start a new conversation".
+                closed = true
+                resumedClosed = false
+                captureAccess(history.attachmentAccess)
+                agentName = history.assignedAgentName
+                agentAvatar = history.assignedAgentAvatar
+                messages = replaceOlderRatings(mergeMessages(messages, history.messages))
+                announceRatings()
+                changed()
                 return
             }
+            closed = false
+            resumedClosed = false
             captureAccess(history.attachmentAccess)
             agentName = history.assignedAgentName
             agentAvatar = history.assignedAgentAvatar
-            messages = mergeMessages(messages, history.messages)
+            messages = replaceOlderRatings(mergeMessages(messages, history.messages))
+            announceRatings()
             changed()
             client.flush()
         }
@@ -578,7 +630,8 @@ public class GiovChatController(
         client.listener = object : ClientListener {
             override fun onMessage(message: GiovMessage) {
                 if (!alive()) return
-                messages = mergeMessages(messages, listOf(message))
+                messages = replaceOlderRatings(mergeMessages(messages, listOf(message)))
+                announceRatings()
                 if (message.role == GiovRole.AGENT) {
                     agentTyping = false
                     agentTypingIsBot = null
@@ -615,6 +668,28 @@ public class GiovChatController(
 
             override fun onAttachmentAccess(access: AttachmentAccess) {
                 if (alive()) captureAccess(access)
+            }
+
+            override fun onConversationClosed(closed: Boolean) {
+                if (!alive() || this@GiovChatController.closed == closed) return
+                this@GiovChatController.closed = closed
+                if (closed) {
+                    // Read-only straight away: nothing is being written any more.
+                    drafts.clear()
+                    agentTyping = false
+                    agentTypingIsBot = null
+                    this@GiovChatController.error = null
+                    ratingSheet = ratingSheet && openRatingRequest(messages, clock()) != null
+                }
+                changed()
+                // A reopened chat (takeover, transfer, return to the bot) may have new messages to catch up on.
+                if (!closed) scope.launch { catchUpNow() }
+            }
+
+            override fun onRating(frame: GiovRatingFrame) {
+                if (!alive()) return
+                messages = patchRating(messages, frame)
+                changed()
             }
 
             override fun onTyping(active: Boolean, isBot: Boolean?) {
@@ -705,6 +780,7 @@ public class GiovChatController(
         val trimmed = text.trim()
         if (trimmed.isEmpty() && files.isEmpty()) return@withContext false
         if (phase != GiovChatPhase.ACTIVE && phase != GiovChatPhase.CONNECTING && phase != GiovChatPhase.READY) return@withContext false
+        if (closed) leaveClosedConversation()
         // Uploads need a live conversation; the attach button only appears once one exists.
         if (files.isNotEmpty() && session == null) return@withContext false
         val generation = this@GiovChatController.generation
@@ -902,6 +978,173 @@ public class GiovChatController(
 
     private fun describe(url: String): GiovAttachment = localFiles[url] ?: GiovAttachment(url)
 
+    // ---------------------------------------------------------------------------------------------
+    // A closed conversation
+
+    /**
+     * Leaves the closed conversation on screen (read-only) behind: forgets it and its stored session and waits for the
+     * visitor's next message, which starts a new conversation. The built-in "Start a new conversation" button calls it;
+     * so does [send] on a closed conversation. Does nothing while the conversation is open.
+     */
+    public suspend fun startNewConversation() {
+        withContext(dispatcher) { leaveClosedConversation() }
+    }
+
+    private suspend fun leaveClosedConversation() {
+        if (disposed || !closed) return
+        generation++
+        stopTyping()
+        cancelSubs()
+        client.disconnect()
+        clearSession()
+        if (disposed) return
+        startNow = false
+        agentName = null
+        agentAvatar = null
+        drafts.clear()
+        agentTyping = false
+        agentTypingIsBot = null
+        ratingSheet = false
+        error = null
+        phase = GiovChatPhase.READY
+        setStatus(GiovConnectionStatus.DISCONNECTED)
+        changed()
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Ratings and answer feedback
+
+    /**
+     * The open request to rate the conversation, if any: not replaced and before its `closesAt`. `score` is set once
+     * the visitor has answered (the answer can be changed until `closesAt`).
+     */
+    public val pendingRating: GiovRatingRequest? get() = openRatingRequest(state.value.messages, clock())
+
+    /**
+     * Rates the conversation: answers the request [requestId], or the open one when null. The answer shows at once
+     * and is rolled back when the server refuses; the thrown [GiovChatException] tells why (see [ratingFailure]):
+     * `rating_closed` and `request_replaced` make the card read-only or hidden. The visitor may change the answer
+     * until `closesAt` (at most 20 times).
+     *
+     * @param score 1 (Very bad) to 5 (Great).
+     * @param comment optional, at most 1,000 characters (longer text is cut).
+     */
+    public suspend fun submitRating(score: Int, comment: String? = null, requestId: String? = null): GiovRatingResult =
+        withContext(dispatcher) {
+            if (disposed) throw GiovDisconnectedException()
+            if (score !in GIOV_RATING_SCORES) throw GiovServerException("The score must be 1 to 5.", 400, "invalid_rating")
+            val text = comment?.trim()?.let { GiovRatingCardState.clampComment(it) }
+            val target = requestId ?: openRatingRequest(messages, clock())?.requestId
+            val before = target?.let { id -> messages.firstOrNull { it.rating?.requestId == id } }
+            val previous = before?.rating
+            if (before != null && previous != null) {
+                messages = patchRating(messages, GiovRatingFrame(previous.requestId, before.id, previous.closesAt, score, text?.ifEmpty { null }))
+                changed()
+            }
+            try {
+                val result = client.submitRating(score, text, requestId ?: target, session)
+                if (disposed) return@withContext result
+                messages = patchRating(messages, GiovRatingFrame(result.requestId, null, result.closesAt, result.score, result.comment))
+                changed()
+                try {
+                    onRatingSubmitted?.invoke(result)
+                } catch (_: Exception) {
+                    // Host callbacks are isolated.
+                }
+                result
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val failure = e.toGiovException()
+                if (!disposed && before != null && previous != null) {
+                    settleRatingFailure(failure.ratingFailure, previous, before.id)
+                    changed()
+                }
+                throw failure
+            }
+        }
+
+    /** Takes the optimistic answer back, and makes the card read-only or hidden when the server said so. */
+    private fun settleRatingFailure(failure: GiovRatingFailure, previous: GiovRatingBlock, messageId: String) {
+        messages = messages.map { message ->
+            val block = message.rating
+            if (message.id != messageId || block == null || block.requestId != previous.requestId) return@map message
+            var next = block.copy(score = previous.score, comment = previous.comment)
+            when (failure) {
+                GiovRatingFailure.Replaced -> next = next.copy(replaced = true)
+                GiovRatingFailure.Closed, GiovRatingFailure.TooManyChanges -> next = next.copy(closesAt = minOf(next.closesAt, clock()))
+                else -> Unit
+            }
+            message.copy(rating = next)
+        }
+    }
+
+    /**
+     * Thumbs up or down on a GiovBot answer ([vote] null takes the vote back). Shown at once and rolled back when the
+     * server refuses. [reason] (at most 300 characters) is kept only with a thumbs-down.
+     */
+    public suspend fun submitAnswerFeedback(messageId: String, vote: GiovAnswerVote?, reason: String? = null) {
+        withContext(dispatcher) {
+            if (disposed) throw GiovDisconnectedException()
+            val before = messages.firstOrNull { it.id == messageId }?.feedback
+            messages = applyFeedback(messages, messageId, vote)
+            changed()
+            try {
+                client.submitFeedback(messageId, vote, reason?.let { GiovRatingCardState.clampReason(it) })
+                try {
+                    onAnswerFeedback?.invoke(messageId, vote)
+                } catch (_: Exception) {
+                    // Host callbacks are isolated.
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!disposed) {
+                    messages = applyFeedback(messages, messageId, before)
+                    changed()
+                }
+                throw e.toGiovException()
+            }
+        }
+    }
+
+    /**
+     * Shows the built-in rating sheet for the open request. False when there is none. The sheet closes itself when
+     * the request ends; [dismissRating] closes it.
+     */
+    public fun presentRating(): Boolean {
+        if (pendingRating == null) return false
+        scope.launch {
+            if (disposed) return@launch
+            ratingSheet = true
+            changed()
+        }
+        return true
+    }
+
+    /** Closes the rating sheet opened with [presentRating]. */
+    public fun dismissRating() {
+        scope.launch {
+            if (!ratingSheet) return@launch
+            ratingSheet = false
+            changed()
+        }
+    }
+
+    /** Reports each open, unanswered rating request once. */
+    private fun announceRatings() {
+        val now = clock()
+        for (message in messages) {
+            val block = message.rating ?: continue
+            if (block.score != null || block.phaseAt(now) != GiovRatingPhase.OPEN || !announcedRatings.add(block.requestId)) continue
+            try {
+                onRatingRequested?.invoke(GiovRatingRequest(message.id, block.requestId, block.closesAt, block.url))
+            } catch (_: Exception) {
+                // Host callbacks are isolated.
+            }
+        }
+    }
+
     private fun captureAccess(incoming: AttachmentAccess?) {
         val next = AttachmentAccess.newer(access, incoming)
         if (next !== access) {
@@ -940,6 +1183,7 @@ public class GiovChatController(
     private fun changed() {
         if (disposed) return
         val config = config
+        val ratingRequest = openRatingRequest(messages, clock())
         mutableState.value = GiovChatUiState(
             phase = phase,
             config = config,
@@ -958,6 +1202,13 @@ public class GiovChatController(
             connectionStatus = status,
             visible = visible,
             conversationId = conversationIdValue,
+            ratingRequest = ratingRequest,
+            ratingsAvailable = !client.ratingsUnsupported,
+            feedbackAvailable = !client.feedbackUnsupported,
+            showsRatingCard = showsRatingCard,
+            showsAnswerFeedback = showsAnswerFeedback,
+            ratingSheetPresented = ratingSheet && ratingRequest != null,
+            conversationClosed = closed,
         )
     }
 }

@@ -33,8 +33,27 @@ public class GiovTextOverride(
 )
 
 /**
+ * The "Powered by GiovChat" footer's look. The footer follows your style but stays on (only the workspace's
+ * `showBranding = false`, a Business and Advanced setting, removes it), so colours are used only while they stay
+ * readable: the background must be opaque; [color] and [brandColor] must be opaque and at least 4.5:1 against the
+ * background, otherwise the defaults apply (text 0xFF52525B, link 0xFF7C3AED, white). Size (12 sp), layout and the 48 dp
+ * tap height are fixed.
+ */
+@Immutable
+public class GiovBrandingOverride(
+    /** Font of the footer; the top-level [GiovChatStyleOverrides.fontFamily] applies when null. */
+    public val fontFamily: FontFamily? = null,
+    /** The "Powered by" text. */
+    public val color: Color? = null,
+    /** The "GiovChat" link colour. */
+    public val brandColor: Color? = null,
+    /** The footer's background (opaque; default white). */
+    public val backgroundColor: Color? = null,
+)
+
+/**
  * Look-and-feel overrides for [GiovChat], comparable to the React Native and Flutter SDKs: fonts and colours
- * only. Layout, sizes, spacing and the branding footer stay SDK-controlled. Every field is optional; the
+ * only. Layout, sizes and spacing stay SDK-controlled; the branding footer follows [branding]. Every field is optional; the
  * dashboard's colours and the light/dark theme apply wherever a slot is not set.
  */
 @Immutable
@@ -69,6 +88,8 @@ public class GiovChatStyleOverrides(
     /** Loading hint, attachment chips, input placeholders. */
     public val hint: GiovTextOverride? = null,
     public val errorText: GiovTextOverride? = null,
+    /** The "Powered by GiovChat" footer; it cannot be hidden by a style, see [GiovBrandingOverride]. */
+    public val branding: GiovBrandingOverride? = null,
 ) {
     /** [base] with this slot's overrides (and the global [fontFamily]) applied. */
     internal fun text(base: TextStyle, slot: GiovTextOverride?): TextStyle = base.copy(

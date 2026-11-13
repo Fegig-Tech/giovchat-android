@@ -33,8 +33,8 @@ public class GiovConversationClosedException(message: String, status: Int? = nul
     GiovChatException(message, status, code)
 
 /** `429 rate_limited`: wait [retryAfterSeconds] before trying again. */
-public class GiovRateLimitedException(message: String, public val retryAfterSeconds: Long) :
-    GiovChatException(message, 429, "rate_limited")
+public class GiovRateLimitedException(message: String, public val retryAfterSeconds: Long, code: String = "rate_limited") :
+    GiovChatException(message, 429, code)
 
 /** `503 workspace_busy`: the workspace is at its plan's limit of open conversations. */
 public class GiovWorkspaceBusyException(message: String, public val retryAfterSeconds: Long) :

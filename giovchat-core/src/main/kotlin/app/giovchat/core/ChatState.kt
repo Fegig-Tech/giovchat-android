@@ -45,6 +45,20 @@ public data class GiovChatUiState(
     val visible: Boolean = true,
     /** The conversation id, once started. */
     val conversationId: String? = null,
+    /** The open request to rate the conversation (not replaced, before its `closesAt`); `score` is set once answered. */
+    val ratingRequest: GiovRatingRequest? = null,
+    /** False once the server showed it has no rating route (an older server): hide the rating card. */
+    val ratingsAvailable: Boolean = true,
+    /** False once the server showed it has no answer-feedback route: hide the thumbs. */
+    val feedbackAvailable: Boolean = true,
+    /** The built-in chat UI draws the rating card (the host turned it off with `showsRatingCard = false` otherwise). */
+    val showsRatingCard: Boolean = true,
+    /** The built-in chat UI draws thumbs under GiovBot answers. */
+    val showsAnswerFeedback: Boolean = true,
+    /** The host asked for the rating sheet with [GiovChatController.presentRating]. */
+    val ratingSheetPresented: Boolean = false,
+    /** The team closed the conversation: it is shown read-only. [GiovChatController.startNewConversation] leaves it. */
+    val conversationClosed: Boolean = false,
 ) {
     val isConnected: Boolean get() = connectionStatus == GiovConnectionStatus.CONNECTED
 }

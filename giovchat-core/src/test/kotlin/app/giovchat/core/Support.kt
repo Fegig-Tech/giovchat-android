@@ -143,6 +143,10 @@ class FakeServer(private val now: () -> Long) : GiovHttp {
     /** Ids for the next conversations started (one per start); [testSession]'s id once it is empty. */
     val createdIds = ArrayDeque<String>()
 
+    /** Answers for the rating and feedback routes; without one they are unknown routes (an older server): status, body, headers. */
+    var ratingResponder: ((LoggedRequest) -> Triple<Int, Map<String, Any?>, Map<String, String>>)? = null
+    var feedbackResponder: ((LoggedRequest) -> Triple<Int, Map<String, Any?>, Map<String, String>>)? = null
+
     fun count(key: String): Int = calls[key] ?: 0
 
     fun to(path: String, method: String? = null): List<LoggedRequest> = requests.filter { it.path == path && (method == null || it.method == method) }
@@ -206,6 +210,16 @@ class FakeServer(private val now: () -> Long) : GiovHttp {
             uploadStatuses.removeFirstOrNull()?.let { return reply(mapOf("error" to "invalid_token"), it) }
             val name = upload?.file?.name ?: "a.png"
             return reply(mapOf("url" to "https://api.example.test/conversations/conv-1/attachments/$name", "filename" to name))
+        }
+        if (path.endsWith("/rating") && request.method == "POST") {
+            bump("rating")
+            val answer = ratingResponder?.invoke(logged) ?: return reply(mapOf("error" to "not_found"), 404)
+            return reply(answer.second, answer.first, answer.third)
+        }
+        if (path.endsWith("/feedback") && request.method == "POST") {
+            bump("feedback")
+            val answer = feedbackResponder?.invoke(logged) ?: return reply(mapOf("error" to "not_found"), 404)
+            return reply(answer.second, answer.first, answer.third)
         }
         if (path.endsWith("/push-token")) {
             bump("push-${request.method}")

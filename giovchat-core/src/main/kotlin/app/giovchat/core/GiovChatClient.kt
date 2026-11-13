@@ -85,6 +85,15 @@ internal interface ClientListener {
 
     /** A newer attachment download token arrived (with a visitor token, an upload or history). */
     fun onAttachmentAccess(access: AttachmentAccess) {}
+
+    /** A rating card was answered, changed or replaced (the `rating` frame). */
+    fun onRating(frame: GiovRatingFrame) {}
+
+    /**
+     * The `conversation_state` frame carried `status`: true when the conversation was closed, false when it was
+     * reopened. Not called by older servers (they send no status).
+     */
+    fun onConversationClosed(closed: Boolean) {}
 }
 
 /** `ios` and `android` are accepted aliases (APNs for a hex token, FCM otherwise); use `APNS` or `FCM` to be explicit. */
@@ -165,6 +174,12 @@ internal class GiovChatClient(
     @Volatile private var currentToken: VisitorToken? = null // read by attachmentUrl from any thread
     private var tokenRequest: Deferred<VisitorToken>? = null
     private var pushUnsupported = false
+
+    /** The server answered a rating / feedback route with an unknown-route 404 (an older server): stop offering them. */
+    var ratingsUnsupported = false
+        private set
+    var feedbackUnsupported = false
+        private set
 
     val isConnected: Boolean get() = socket?.isOpen ?: false
 
@@ -500,6 +515,18 @@ internal class GiovChatClient(
             listener?.onStream(StreamEvent.End(streamId))
             return
         }
+        if (type == "conversation_state") {
+            when (data["status"].asString()) {
+                "closed" -> listener?.onConversationClosed(true)
+                "open" -> listener?.onConversationClosed(false)
+                else -> Unit // unknown or absent (an older server): the history's status keeps deciding
+            }
+            return
+        }
+        if (type == "rating") {
+            GiovRatingFrame.fromJson(data)?.let { listener?.onRating(it) }
+            return
+        }
         if (type == "error") {
             serverError(data)
             return
@@ -767,6 +794,74 @@ internal class GiovChatClient(
             throw error
         } catch (error: Exception) {
             false
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Ratings and thumbs
+
+    /**
+     * A refusal of a rating or feedback route, keeping the server's code (`rating_closed`, `too_many_changes`, ...) so
+     * [ratingFailure] can tell them apart; a 409 here is not "conversation closed".
+     */
+    private fun ratingError(reply: Reply): GiovChatException {
+        val code = reply.code
+        val message = reply.body["message"].asString() ?: code ?: "HTTP ${reply.status}"
+        return when {
+            reply.status == 429 -> GiovRateLimitedException(message, reply.retryAfterSeconds, code ?: "rate_limited")
+            reply.status == 401 || reply.status == 403 -> GiovSessionExpiredException(message, reply.status, code)
+            else -> GiovServerException(message, reply.status, code)
+        }
+    }
+
+    /** A 404 that names no request or message is a server without the route. */
+    private fun isUnknownRoute(reply: Reply): Boolean =
+        reply.status == 404 && reply.code != "request_not_found" && reply.code != "message_not_found"
+
+    /**
+     * A call with the visitor token of the connected conversation, or of [session] (the closed conversation a rating
+     * card came from) when there is no connection.
+     */
+    private suspend fun visitorCall(path: String, json: JsonObject, session: GiovSession?): Reply {
+        if (currentSession != null) return authed("POST", conversationPath() + path, json)
+        val target = session ?: throw GiovDisconnectedException()
+        val url = "/conversations/${encodeComponent(target.conversationId)}$path"
+        var visitor = fetchToken(target)
+        var reply = request("POST", url, mapOf("Authorization" to "Bearer ${visitor.token}"), json)
+        if (reply.status == 401) {
+            visitor = fetchToken(target)
+            reply = request("POST", url, mapOf("Authorization" to "Bearer ${visitor.token}"), json)
+        }
+        return reply
+    }
+
+    /** `POST /conversations/{id}/rating`. A null [requestId] answers the conversation's open card. */
+    suspend fun submitRating(score: Int, comment: String?, requestId: String?, session: GiovSession? = null): GiovRatingResult {
+        if (ratingsUnsupported) throw GiovServerException("This server has no ratings.", 404, "not_found")
+        val body = buildJsonObject {
+            put("score", score)
+            if (requestId != null) put("requestId", requestId)
+            comment?.trim()?.takeIf { it.isNotEmpty() }?.let { put("comment", it) }
+        }
+        val reply = visitorCall("/rating", body, session)
+        if (!reply.ok) {
+            if (isUnknownRoute(reply)) ratingsUnsupported = true
+            throw ratingError(reply)
+        }
+        return GiovRatingResult.fromJson(reply.body, clock()) ?: throw GiovInvalidResponseException("Invalid rating response.", reply.status)
+    }
+
+    /** `POST /conversations/{id}/messages/{messageId}/feedback`. A null [vote] sends `none`. */
+    suspend fun submitFeedback(messageId: String, vote: GiovAnswerVote?, reason: String?) {
+        if (feedbackUnsupported) throw GiovServerException("This server has no answer feedback.", 404, "not_found")
+        val body = buildJsonObject {
+            put("value", vote?.wire ?: "none")
+            if (vote == GiovAnswerVote.DOWN) reason?.trim()?.takeIf { it.isNotEmpty() }?.let { put("reason", it) }
+        }
+        val reply = visitorCall("/messages/${encodeComponent(messageId)}/feedback", body, null)
+        if (!reply.ok) {
+            if (isUnknownRoute(reply)) feedbackUnsupported = true
+            throw ratingError(reply)
         }
     }
 

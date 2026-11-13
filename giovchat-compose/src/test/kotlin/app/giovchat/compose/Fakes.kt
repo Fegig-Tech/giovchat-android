@@ -57,6 +57,8 @@ class FakeSocket(val url: String, val listener: GiovSocketListener) : GiovSocket
         return true
     }
 
+    fun receiveRaw(text: String) = listener.onMessage(text)
+
     /** The network ended the socket. */
     fun drop() {
         open = false
@@ -107,6 +109,11 @@ class FakeServer(private val now: () -> Long) : GiovHttp {
     var configStatus = 200
     /** How long an upload takes. */
     var uploadDelayMs = 0L
+    /** Whether the rating and feedback routes exist (an older server answers 404). */
+    var ratingsEnabled = true
+
+    /** `open` or `closed` in the history answer. */
+    var status = "open"
 
     fun count(key: String): Int = calls[key] ?: 0
 
@@ -150,12 +157,23 @@ class FakeServer(private val now: () -> Long) : GiovHttp {
         }
         if (path.endsWith("/history")) {
             bump("history")
-            return reply(mapOf("status" to "open", "messages" to history))
+            return reply(mapOf("status" to status, "messages" to history))
         }
         if (path.endsWith("/upload-visitor")) {
             bump("upload")
             if (uploadDelayMs > 0) kotlinx.coroutines.delay(uploadDelayMs)
             return reply(mapOf("url" to "https://api.example.test/conversations/conv-1/attachments/a.png", "filename" to "a.png"))
+        }
+        if (path.endsWith("/rating") && request.method == "POST") {
+            bump("rating")
+            if (!ratingsEnabled) return reply(mapOf("error" to "not_found"), 404)
+            val score = logged.json["score"]?.let { (it as kotlinx.serialization.json.JsonPrimitive).content.toInt() }
+            return reply(mapOf("requestId" to (logged.json["requestId"]?.let { (it as kotlinx.serialization.json.JsonPrimitive).content } ?: "req-1"), "score" to score, "comment" to null, "closesAt" to System.currentTimeMillis() + 86_400_000, "ratedAt" to now()))
+        }
+        if (path.endsWith("/feedback") && request.method == "POST") {
+            bump("feedback")
+            if (!ratingsEnabled) return reply(mapOf("error" to "not_found"), 404)
+            return reply(mapOf("messageId" to "x", "value" to null, "reason" to null))
         }
         if (path.endsWith("/push-token")) return reply(mapOf("registered" to true))
         return reply(mapOf("error" to "not_found"), 404)
